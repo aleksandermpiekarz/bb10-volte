@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+source "$(dirname -- "${BASH_SOURCE[0]}")/bb-common.sh"
+[[ $# == 2 ]] || { echo 'Usage: bb-send LOCAL_FILE REMOTE_ABSOLUTE_PATH' >&2; exit 2; }
+[[ -f $1 ]] || { echo 'Local source is not a file' >&2; exit 2; }
+bb_remote_path "$2"
+bb_local=$(wslpath -w "$(realpath -e -- "$1")")
+exec "$bb_openssh/scp.exe" -O "${bb_options[@]}" "$bb_local" "root@$bb_host:$2"

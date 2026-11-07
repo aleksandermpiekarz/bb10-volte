@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+source "$(dirname -- "${BASH_SOURCE[0]}")/bb-common.sh"
+# SSH joins command arguments into a remote shell command. Pass a single
+# trusted command string; never interpolate untrusted input into it.
+exec "$bb_openssh/ssh.exe" "${bb_options[@]}" "root@$bb_host" "$@"

@@ -54,3 +54,11 @@ dkms.conf
 # debug information files
 *.dwo
 tests/test_carrier_config
+
+# Local build and diagnostic artifacts
+/volte.zip
+/pkg/init/ims_manager
+/artifacts/
+
+# Windows download metadata
+*:Zone.Identifier

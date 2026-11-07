@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+source "$(dirname -- "${BASH_SOURCE[0]}")/bb-common.sh"
+[[ $# == 2 ]] || { echo 'Usage: bb-fetch REMOTE_ABSOLUTE_PATH LOCAL_DESTINATION' >&2; exit 2; }
+bb_remote_path "$1"
+# The destination's parent must exist. Existing files may be overwritten by SCP.
+bb_local=$(wslpath -w "$(realpath -m -- "$2")")
+exec "$bb_openssh/scp.exe" -O "${bb_options[@]}" "root@$bb_host:$1" "$bb_local"
