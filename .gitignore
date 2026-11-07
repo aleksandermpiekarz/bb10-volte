@@ -54,6 +54,7 @@ dkms.conf
 # debug information files
 *.dwo
 tests/test_carrier_config
+tests/test_voice_flag
 
 # Local build and diagnostic artifacts
 /volte.zip

@@ -96,6 +96,16 @@ Add both files to `pkg/data/perms`.
 
 `make test` builds and runs the host-side unit tests for the carrier helpers with the native compiler and libxml2.
 
+## Experimental IMS voice override (this fork)
+
+The shipped `data/force-ims-voice` marker enables an experimental override of
+the device-wide `IMS_VOICE_SUPPORTED` bit. Enable mode adds it only on LTE with
+a ready SIM, data enabled and registered IMS; it clears the managed bit when
+these conditions disappear, the marker is removed, or the daemon exits normally.
+It preserves all other service bits. Read/write failures or SIGKILL can prevent
+cleanup. This does not establish emergency-call support or guarantee voice on
+every network. See [operation, disable and rollback instructions](docs/PERSISTENT_IMS_VOICE.md).
+
 ## ⚠️ Disclaimer
 
 This project is provided for research, experimentation, and preservation of BlackBerry 10 devices.

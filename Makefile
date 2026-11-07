@@ -13,7 +13,7 @@ TARGET_BIN := $(PKG_DIR)/ims_manager
 TARGET_SO  := $(PKG_DIR)/devnp-volte-swcrypto.so
 
 # Source files
-SRCS_BIN  := ims_manager.c ims_carrier_config.c sys_utils.c berry_monitor.c
+SRCS_BIN  := ims_manager.c ims_carrier_config.c sys_utils.c berry_monitor.c voice_flag.c
 SRCS_BIN  := $(addprefix $(SRC_DIR)/, $(SRCS_BIN))
 SRCS_SO   := $(SRC_DIR)/devnp-volte-swcrypto.c
 
@@ -43,11 +43,14 @@ all: package
 HOST_CC     ?= cc
 HOST_XML2   ?= $(shell xml2-config --cflags --libs 2>/dev/null || echo -I/usr/include/libxml2 -lxml2)
 TEST_BIN    := tests/test_carrier_config
+VOICE_TEST_BIN := tests/test_voice_flag
 
 test:
 	$(HOST_CC) -std=gnu99 -Wall -Wextra -Isrc tests/test_carrier_config.c src/ims_carrier_config.c \
 		$(HOST_XML2) -o $(TEST_BIN)
 	./$(TEST_BIN)
+	$(HOST_CC) -std=gnu99 -Wall -Wextra -Werror -Isrc tests/test_voice_flag.c src/voice_flag.c -o $(VOICE_TEST_BIN)
+	./$(VOICE_TEST_BIN)
 
 # Helper target to invoke build with DEBUG=1
 debug:
@@ -91,7 +94,7 @@ package: $(TARGET_BIN) $(TARGET_SO)
 # Clean object files, dependency files, binaries, and archive
 clean:
 	@echo "[*] Cleaning build artifacts..."
-	rm -f $(OBJS_BIN) $(OBJS_SO) $(DEPS) $(TARGET_BIN) $(TARGET_SO) $(ZIP_NAME) $(TEST_BIN)
+	rm -f $(OBJS_BIN) $(OBJS_SO) $(DEPS) $(TARGET_BIN) $(TARGET_SO) $(ZIP_NAME) $(TEST_BIN) $(VOICE_TEST_BIN)
 
 help:
 	@echo "Usage:"

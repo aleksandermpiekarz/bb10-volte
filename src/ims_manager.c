@@ -18,6 +18,7 @@
 #include "sys_utils.h"
 #include "berry_monitor.h"
 #include "ims_carrier_config.h"
+#include "voice_flag.h"
 
 #define IR92_PATH "/var/dca/sources/ims/services/carrier_config/ims/ir92"
 /* Overridden per carrier by <data>/ir92-<carrierID> (see ims_load_ir92_config) */
@@ -67,6 +68,10 @@ static pthread_t g_lte_thread;
 static volatile int g_lte_monitor_running = 0;
 static system_state_t g_current_state = {0};
 static connection_stats_t g_stats = {0};
+static volatile sig_atomic_t g_shutdown_requested = 0;
+static pthread_mutex_t g_voice_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int g_voice_managed = 0;
+static int g_voice_stopping = 0;
 
 /* --- Statistics Management --- */
 
@@ -221,6 +226,57 @@ static int is_state_ready(const system_state_t *st)
     return (st->lte_ok && st->sim_ok && st->data_ok);
 }
 
+/* Only enable mode calls this. Always read a fresh device-wide mask: the
+ * cell-wide mask has different bits and must not replace it. */
+static void sync_voice_flag(int allowed)
+{
+    char marker[sizeof(g_data_path) + 32], snapshot[4096], command[64];
+    static int warned = 0;
+    snprintf(marker, sizeof(marker), "%s/force-ims-voice", g_data_path);
+
+    pthread_mutex_lock(&g_voice_mutex);
+    int enabled = access(marker, F_OK) == 0;
+    if (enabled)
+        g_voice_managed = 1;
+    if (!g_voice_managed) {
+        pthread_mutex_unlock(&g_voice_mutex);
+        return;
+    }
+    int qualified = 0;
+    if (allowed && enabled && !g_voice_stopping && !g_shutdown_requested) {
+        system_state_t state = get_current_system_state();
+        qualified = is_state_ready(&state) && ims_connected_pps();
+    }
+    int result = -1;
+    if (read_file(PPS_RADIO_PATH, snapshot, sizeof(snapshot)) > 0)
+        result = voice_flag_command(snapshot, qualified, command, sizeof(command));
+    if (result == 1) {
+        if (append_file(PPS_RADIO_PATH, command) == 0) {
+            unsigned long next = strtoul(command + strlen("network_service:n:"), NULL, 10);
+            log_msg("[BBE] IMS_VOICE_FLAG: %s", next & 0x02000000UL ? "ON" : "OFF");
+        } else {
+            result = -1;
+        }
+    }
+    if (result < 0 && !warned)
+        log_msg("[BBE] IMS_VOICE_FLAG: cannot read/update PPS; cleanup not guaranteed");
+    warned = result < 0;
+    /* Once disabled and cleaned, stop touching a bit the modem may naturally
+     * advertise later. Keep retrying only if that cleanup failed. */
+    if (!enabled && result >= 0)
+        g_voice_managed = 0;
+    pthread_mutex_unlock(&g_voice_mutex);
+}
+
+static void stop_voice_flag(void)
+{
+    /* Prevent an exiting worker's atexit cleanup from racing a main-loop write. */
+    pthread_mutex_lock(&g_voice_mutex);
+    g_voice_stopping = 1;
+    pthread_mutex_unlock(&g_voice_mutex);
+    sync_voice_flag(0);
+}
+
 static void log_state_transition(system_state_t old_st, system_state_t new_st)
 {
     int old_ready = is_state_ready(&old_st);
@@ -326,6 +382,8 @@ static void wait_for_lte(void)
     int printed_log = 0;
     while (!pps_check_attribute_contains(PPS_RADIO_PATH, "network_technology", "lte"))
     {
+        if (g_shutdown_requested)
+            exit(0);
         if (!printed_log)
         {
             LOG_VERBOSE("LTE network not available. Waiting for LTE connection...");
@@ -357,6 +415,26 @@ static void ready_check(void)
 
     if (!pps_check_attribute_contains(PPS_DATA_PATH, "data_service_mode", "ON"))
         bbe_exit_fail("DATA_OFF", 1);
+}
+
+static void wait_for_enable_ready(void)
+{
+    int waiting = 0;
+    while (!g_shutdown_requested) {
+        /* Retry cleanup after transient PPS failures while services are down. */
+        sync_voice_flag(0);
+        system_state_t state = get_current_system_state();
+        if (is_state_ready(&state) &&
+            pps_check_attribute_contains("/pps/services/phone/public/status", "phone_state", "idle") &&
+            detect_sim_carrier())
+            return;
+        if (!waiting) {
+            log_msg("[BBE] WAITING_FOR_SERVICES");
+            waiting = 1;
+        }
+        sleep(1);
+    }
+    exit(0);
 }
 
 /* --- Provider & IMS control --- */
@@ -497,6 +575,8 @@ static int wait_connected(void)
 {
     for (int i = 0; i < 30; i++)
     {
+        if (g_shutdown_requested)
+            exit(0);
         if (ims_connected_pps())
             return 1;
         if (i % 5 == 0)
@@ -678,6 +758,19 @@ static void stop_lte_monitor(void)
     }
 }
 
+static void monitor_until_stopped(void)
+{
+    while (g_berry_running && !g_shutdown_requested) {
+        /* Independent of the LTE recovery thread, which can block for seconds
+         * stopping/restarting IMS. Re-evaluate IMS even without a PPS event. */
+        sync_voice_flag(1);
+        sleep(1);
+    }
+    stop_voice_flag();
+    stop_lte_monitor();
+    stop_berry();
+}
+
 /* --- Signal Handlers & Usage --- */
 
 static void sigusr1_handler(int sig)
@@ -690,9 +783,7 @@ static void sigusr1_handler(int sig)
 static void signal_handler(int sig)
 {
     (void)sig;
-    stop_lte_monitor();
-    stop_berry();
-    exit(0);
+    g_shutdown_requested = 1;
 }
 
 static void print_usage(const char *prog_name)
@@ -817,7 +908,17 @@ int main(int argc, char *argv[])
         bbe_exit_fail("ACTION_INVALID", 1);
     }
 
-    ready_check();
+    /* Acquire ownership before any startup cleanup can touch another daemon's
+     * live flag. The fd remains open until exit, including atexit cleanup. */
+    int enable_lock = voice_flag_lock(RUN_PATH "/ims-manager.lock");
+    if (enable_lock < 0) {
+        log_msg("[BBE] ENABLE_LOCK_FAILED: another manager may be running");
+        return 1;
+    }
+    if (atexit(stop_voice_flag) != 0)
+        bbe_exit_fail("VOICE_CLEANUP_SETUP_FAILED", 1);
+    sync_voice_flag(0);
+    wait_for_enable_ready();
     LOG_VERBOSE("Ready check passed successfully");
 
     provider_enable();
@@ -830,12 +931,7 @@ int main(int argc, char *argv[])
         start_lte_monitor();
         log_msg("[BBE] ALREADY_CONNECTED");
 
-        while (g_berry_running)
-        {
-            sleep(1);
-        }
-
-        stop_lte_monitor();
+        monitor_until_stopped();
         return 0;
     }
 
@@ -897,11 +993,6 @@ int main(int argc, char *argv[])
     /* Start background monitoring thread after initial successful connection */
     start_lte_monitor();
 
-    while (g_berry_running)
-    {
-        sleep(1);
-    }
-
-    stop_lte_monitor();
+    monitor_until_stopped();
     return 0;
 }

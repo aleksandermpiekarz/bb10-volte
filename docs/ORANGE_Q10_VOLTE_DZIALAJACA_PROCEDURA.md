@@ -3,6 +3,11 @@
 Data: **7 listopada 2026**, czas lokalny CET. Repozytorium robocze:
 `/home/alek/projects/own/bb10-volte` — fork użytkownika.
 
+**Status dokumentu:** zapis pierwszego udanego testu z czasową flagą.
+Późniejszą implementację automatycznej obsługi opisuje
+[PERSISTENT_IMS_VOICE.md](PERSISTENT_IMS_VOICE.md); jej wdrożenie i test po restarcie
+trzeba oceniać na podstawie aktualnego wpisu w `progress.md`.
+
 **Potwierdzony wynik:** użytkownik zgłosił działającą rozmowę; podczas niej
 Q10 pozostał w LTE, log IMS pokazał zestawienie SIP oraz wysyłane i odbierane
 pakiety RTP. Zadziałało po dodaniu testowej flagi **IMS_VOICE_SUPPORTED**

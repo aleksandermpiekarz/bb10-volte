@@ -541,3 +541,52 @@ adresem GitHub noreply `48812006+aleksandermpiekarz@users.noreply.github.com`.
 Następna próba T-Mobile będzie wymagała potwierdzenia włożenia SIM 260/02,
 ponownego wykrycia carrier ID 240 i kontroli aktywnego profilu. Udany test
 Orange nie jest dowodem działania głosu T-Mobile.
+
+## 2026-11-07, 15:33 CET — wdrożenie automatycznej flagi IMS voice
+
+Na wyraźną prośbę użytkownika zaimplementowano trwałą obsługę udanego testu
+w menedżerze, zamiast czasowej pętli SSH. Plik `data/force-ims-voice` jest
+przełącznikiem, dołączonym do pakietu. Pętla enable co sekundę odczytuje świeżą
+maskę urządzenia, LTE/SIM/data i rejestrację IMS; dodaje/usuwa wyłącznie bit
+0x02000000. Nie zmieniono profili Orange/T-Mobile ani flag alarmowych.
+
+Zmiany i plan: [PERSISTENT_IMS_VOICE.md](PERSISTENT_IMS_VOICE.md),
+[persistent-ims-voice-plan.md](persistent-ims-voice-plan.md).
+Obsługa marker OFF przestaje zarządzać bitem po sprzątnięciu. Dodano blokadę
+drugiego procesu przed pierwszym zapisem, cleanup na kontrolowany exit,
+ponawianie cleanup podczas oczekiwania na usługi, oczekiwanie enable na start
+SIM/LTE oraz nieblokujący odczyt i poprawkę wyścigu startu monitora Berry.
+
+Weryfikacja: test najpierw czerwony (brak modułu), potem **41** kontroli polityki
+i parsowania. Po niezależnym przeglądzie dodano test blokady rzeczywistych
+procesów (czerwony: brak funkcji), potem **49/49**. Pełne testy **36 + 49**, zero
+błędów. Przegląd wskazał także ponawianie cleanup po błędach startowego PPS —
+poprawiono. Build ARM/QNX i ZIP poprawne. Pozostały wcześniejsze ostrzeżenia
+MCC/MNC i `char`/EOF; nie dotyczą nowego modułu. Nie testowano awarii odczytu PPS
+ani SIGTERM dokładnie podczas blokującej recovery; SIGKILL/awaria nie gwarantują
+sprzątnięcia flagi, a błąd odczytu/zapisu jest raportowany bez wpisywania starej maski.
+
+Przed instalacją utworzono `/var/rootdata/volte-before-persistent-20261107/`
+z backupem dodatku/DCA/IMS i dokładnym PPS cnice; pobrane archiwum znajduje się
+w ignorowanym `artifacts/backup-before-persistent.tar`, lokalnie tryb 600,
+SHA-256 `337171e2dadc98200f12a9917f1b088d154d60ed3ef144de64e0ed60816d054e`.
+Stary menedżer 17711162 zakończył się po SIGTERM; potwierdzono brak procesu
+przed zastąpieniem plików. Transfer nowej paczki porównano `cmp` w obie strony.
+Installer zakończył się kodem 0 o 15:33:15.
+
+| Artefakt | Bajty | SHA-256 |
+| --- | ---: | --- |
+| `artifacts/volte-persistent-voice-v1.zip` | 27888 | `73532a0eb52f5765feb9fe871ce0f7ed2b4482508420d119340564ef1ae5536d` |
+| `pkg/init/ims_manager` | 39044 | `5f58a2258ae21707590f9f85700b55160cde2e953c5a62d2d0697143141e29a2` |
+
+Zainstalowaną binarkę pobrano i porównano bajtowo z buildem. Test PPS na Q10
+**7/7**. Log automatycznie zgłosił IMS_VOICE_FLAG ON, maskę 35652618 i VoPS=1.
+Test marker OFF: 2098186; ON: 35652618. Drugi `enable`: kod 1, ENABLE_LOCK_FAILED,
+maska pozostała włączona. Kontrolowany SIGTERM: brak procesu i maska 2098186;
+ponowny start: flaga samoczynnie ON. Wyłączenie markerem przestało ingerować
+w kontrolowany bit wpisany później w teście, a następnie ten wpis cofnięto.
+
+Ostateczny menedżer uruchomiono niezależnie od SSH (stdin /dev/null, stdout/stderr
+do `manager.log` w katalogu backupu). PID 34091053, Orange, LTE i VoPS=1.
+Restart całego telefonu jest następnym uzgodnionym testem; nie zaliczamy go
+na podstawie samego restartu procesu. Przed nim BootTime: 14:03:59.
