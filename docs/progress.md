@@ -605,3 +605,9 @@ W tym momencie SSH zwracało `banner exchange ... Connection refused`, więc
 **autostart i VoPS po pełnym restarcie nie są jeszcze zweryfikowane**.
 Poproszono użytkownika o stan okna UAC i ekranu telefonu. Do czasu potwierdzenia
 gałąź z nowym kodem nie zastępuje main; T-Mobile jeszcze nie testowano.
+
+Ostatecznie UAC zostało anulowane (`The operation was canceled by the user`);
+nie zmieniono trasy i nie ponawiano żądania podniesienia uprawnień. Kolejny
+odczyt SSH nadal zwrócił odmowę podczas wymiany bannera. Wdrożony kod i wyniki
+testów sprzed restartu są zapisane i wypchnięte na `origin/feat/persistent-ims-voice`.
+Do dalszej weryfikacji potrzebne jest odzyskanie SSH i stan ekranu Q10.
