@@ -30,7 +30,7 @@ bez dodatkowej kopii poza katalogiem wskazanym przez użytkownika.
 - [x] Pełne testy, build ARM, niezależny przegląd zmian, dokumentacja wyłączenia.
 - [x] Backup telefonu, zatrzymanie starego menedżera, instalacja i porównanie
   hasha nowej binarki; kontrola ustawienia, wyłączenia i ponownego włączenia flagi.
-- [ ] Zapis commita. Restart i rozmowy po restarcie oceniane osobno na telefonie.
+- [x] Zapis commita. Restart i rozmowy po restarcie oceniane osobno na telefonie.
 
 Testy na telefonie nie obejmują numerów alarmowych. Funkcja umożliwia wybór
 głosu IMS, ale nie dowodzi poprawności wszystkich procedur telefonu/sieci.

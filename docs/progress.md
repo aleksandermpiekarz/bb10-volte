@@ -590,3 +590,18 @@ Ostateczny menedżer uruchomiono niezależnie od SSH (stdin /dev/null, stdout/st
 do `manager.log` w katalogu backupu). PID 34091053, Orange, LTE i VoPS=1.
 Restart całego telefonu jest następnym uzgodnionym testem; nie zaliczamy go
 na podstawie samego restartu procesu. Przed nim BootTime: 14:03:59.
+
+Kod wdrożonej wersji zapisano w **a3faee8** na gałęzi `feat/persistent-ims-voice`.
+Po potwierdzeniu bezczynności wykonano `/bin/shutdown -S reboot`. Składnię
+sprawdzono uprzednio przez `use shutdown`: na tym BB10 **`-b` oznacza wyłączenie
+bez restartu**, więc nie wolno przenosić odmiennych przykładów QNX w ciemno.
+Telefon przyjął restart i zamknął SSH po procedurze shutdown.
+
+Przy ponownym pojawieniu się interfejsu Windows odtworzył podejrzaną trasę
+169.254.0.1/32 przez własny adres 169.254.0.2 (interface 9). Uruchomiono usunięcie
+wyłącznie tego wpisu z podniesieniem UAC, tak jak wcześniej. Proces hosta czeka
+na odpowiedź UAC; zwykły PowerShell nie ma uprawnienia Remove-NetRoute.
+W tym momencie SSH zwracało `banner exchange ... Connection refused`, więc
+**autostart i VoPS po pełnym restarcie nie są jeszcze zweryfikowane**.
+Poproszono użytkownika o stan okna UAC i ekranu telefonu. Do czasu potwierdzenia
+gałąź z nowym kodem nie zastępuje main; T-Mobile jeszcze nie testowano.

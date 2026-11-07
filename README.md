@@ -94,7 +94,8 @@ Add both files to `pkg/data/perms`.
 
 ## 🧪 Tests
 
-`make test` builds and runs the host-side unit tests for the carrier helpers with the native compiler and libxml2.
+`make test` builds and runs the host-side carrier and IMS voice flag tests with
+the native compiler and libxml2, including exclusive daemon lock checks.
 
 ## Experimental IMS voice override (this fork)
 
