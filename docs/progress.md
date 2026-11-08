@@ -611,3 +611,53 @@ nie zmieniono trasy i nie ponawiano żądania podniesienia uprawnień. Kolejny
 odczyt SSH nadal zwrócił odmowę podczas wymiany bannera. Wdrożony kod i wyniki
 testów sprzed restartu są zapisane i wypchnięte na `origin/feat/persistent-ims-voice`.
 Do dalszej weryfikacji potrzebne jest odzyskanie SSH i stan ekranu Q10.
+
+## 2026-11-08 — relacja po restartach, następna próba T-Mobile
+
+Użytkownik poinformował, że pierwszy start Q10 po wdrożeniu utknął na napisie
+BlackBerry. Kolejna próba również nie dała oczekiwanego działania; dopiero
+następny restart przywrócił działanie i **VoLTE Orange działało po restarcie**.
+To potwierdzenie użytkownika, nie pełny zapis diagnostyczny poprzednich startów.
+Nie należy uznawać rozruchu za stabilny ani przypisywać przyczyny zawieszenia
+samemu menedżerowi bez logów. Oczekiwanie enable działa w tle przez `on -d`,
+ale potrzebna jest obserwacja problemu, jeśli się powtórzy. Nie wykonujemy
+kolejnych restartów tylko w celu wywołania zawieszenia.
+
+Użytkownik podłączył teraz Q10 z kartą **T-Mobile** i polecił użyć odpowiedniego
+profilu, zachowując trwałą flagę. Profil `carrier-240-volte.xml` i marker są już
+w źródłach oraz poprzednio zainstalowanej paczce. Najpierw odczytujemy aktualny
+carrier ID, aktywny profil, flagę i rejestrację; nie zastępujemy działającej
+binarki bez potrzeby. Celem jest normalna rozmowa T-Mobile na LTE z audio,
+nie tylko stan CONNECTED. Gałąź robocza: `feat/persistent-ims-voice`.
+
+Odczyt o 11:28–11:29 potwierdził **BootTime 11:12:59**, nowy menedżer PID
+14057566 oraz `ims_rrm` PID 14274749. Karta faktycznie **260/02, carrier 240**;
+telefon wybrał **carrier-240-volte.xml** bez ręcznego przełączania. Profil
+pobrany z telefonu jest identyczny z plikiem w repo (SHA-256
+`9b22b848491934c0c100b15ea06b9fd665437bf4d062475065e3165799948f87`), binarka
+z wdrożoną wersją (SHA-256
+`5f58a2258ae21707590f9f85700b55160cde2e953c5a62d2d0697143141e29a2`).
+Nie przeinstalowywano dodatku ani nie modyfikowano obecnego profilu.
+
+T-Mobile: **LTE 260/02**, dane ON, APN `internet` i `ims` aktywne i połączone,
+IMS engine/system CONNECTED. Domyślny IR.92: `UsePreconditions:n:0`,
+SMS 3GPP i modesety AMR 7 / AMR-WB 2. Nie przenoszono wartości Orange
+bez dowodu, że T-Mobile wymaga preconditions.
+
+Marker istnieje, maska urządzenia **35652618**, log `ims_rrm` potwierdza
+**VoPS=1**. Startowy log: WAITING_FOR_SERVICES 11:19:36, APPLYING 11:19:53,
+CONNECTED i flaga ON 11:20:06. Wystąpiła utrata IMS, OFF i LTE, następnie
+automatyczne odtworzenie do CONNECTED/ON o 11:20:55. Nie przypisujemy temu
+przyczyny bez dalszych danych. Obecny autostart i działanie flagi po pełnym
+uruchomieniu są potwierdzone, ale nie oznacza to niezawodnego rozruchu.
+
+Ważne uściślenie diagnostyki USB: Windows nadal ma trasę 169.254.0.1/32 przez
+169.254.0.2, a **SSH/SCP działają**. Wcześniejsze przypisanie jej przyczyny
+timeoutów było hipotezą, nie dowodem. Dziś nie zmieniano tras, nie żądano UAC.
+Nie należy usuwać wpisu przy działającym połączeniu.
+
+Uruchomiono odczytową obserwację radio/phone/IMS do
+`artifacts/tmobile-20261108-call-observation.txt`. Kolejny etap wymaga zwykłej
+próby połączenia użytkownika z Q10 na drugi własny numer i potwierdzenia LTE
+oraz audio, a następnie osobno połączenia przychodzącego. Głosu T-Mobile
+nie potwierdzamy na podstawie samej rejestracji IMS.

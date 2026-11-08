@@ -143,10 +143,11 @@ powershell.exe -NoProfile -NonInteractive -Command \
 ```
 
 Zaczekać na pełne uruchomienie telefonu i odblokować ekran. W tej sesji
-zdarzył się również błędny wpis Windows `169.254.0.1/32 → 169.254.0.2`
-(własny adres Windows); usunięto tylko ten konkretny wpis administracyjnym
-PowerShell. Nie usuwać tras profilaktycznie — timeout występował później
-także bez tego wpisu. Szczegóły są w [progress.md](progress.md).
+zauważono również podejrzany wpis Windows `169.254.0.1/32 → 169.254.0.2`
+(własny adres Windows); usunięto wtedy tylko ten konkretny wpis administracyjnym
+PowerShell. Nie potwierdzono jednak związku przyczynowego: 8 listopada SSH
+działało również z tym wpisem. Nie usuwać tras profilaktycznie — timeout
+występował także bez niego. Szczegóły są w [progress.md](progress.md).
 
 ## 4. Kompilacja i kontrola paczki
 
