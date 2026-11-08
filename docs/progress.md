@@ -915,3 +915,51 @@ Odczyt upstream issues/PR nie znalazł gotowej poprawki T-Mobile.
 Pomocniczy [projekt PhhIms](https://github.com/ProjectCiRCLE-ROM/packages_apps_PhhIms#partial--reference-carrier-logs)
 opisuje 26002 tylko jako częściowy materiał referencyjny, nie potwierdzoną
 działającą konfigurację. Nie kopiowano z niego ustawień do Q10.
+
+### Przygotowanie krótkiego zapisu NAS/ESM — bez nowych zmian profilu
+
+Katalogi `/var/log/radio/archive` i `msm8960/ramdumps` są puste; nie ma
+wcześniejszego zapisu pozwalającego odczytać modemową przyczynę odmowy.
+Na Q10 istnieje `/base/bin/qxdmlogger-msm8960` i maski `/etc/qxdm/qxdmlogger`.
+Sterowanie odbywa się przez `/pps/services/radioctrl/modem0/diag/qxdmlogger`.
+Przed próbami status Disabled, brak procesu loggera, maska 1,
+LogNum=4, LogSize=25, domyślne ścieżki `/var/log/radio/` i `archive/`.
+
+Lokalnie, wyłącznie pod ignorowanym `artifacts/diag-analysis-deps`, rozpakowano
+po weryfikacji SHA-256 z PyPI: QCSuper 2.1.4, pycrate 0.8.1, pyserial 3.5,
+pyusb 1.3.1 oraz czysty moduł crcmod 1.7. Nie instalowano ich systemowo.
+Opcja DONT_INSTALL_WIRESHARK_PLUGIN=1 zapobiega zapisowi pluginu poza repo.
+QCSuper uruchamia lokalne `--help`; pycrate poprawnie odczytał syntetyczny
+ESMActDediEPSBearerCtxtReject z cause=26 jako Insufficient resources.
+To test dekodera, **nie wiadomość odebrana z modemu Q10**. CryptoMobile nie
+jest zainstalowane; nie obiecujemy dekodowania zaszyfrowanego NAS.
+
+Pobrana stockowa maska `C2K_G_W_L_DS_NAS_QMI_lite.qcfg` została odczytana
+lokalnie: 41 poprawnych ramek HDLC; maska LTE zawiera kody B0C0, B0E2, B0E3,
+B0EC, B0ED (RRC oraz NAS ESM/EMM). Nie zmieniano tej maski ani NVRAM.
+
+Pomocnicze skrypty są ignorowane w `artifacts/tmobile-diag-probe.sh` oraz
+`artifacts/tmobile-diag-call.sh`. Nie tworzą połączeń automatycznie. Zapis
+ograniczono do 90 s i dwóch plików po 2 MB w prywatnym katalogu rootdata
+z umask 077. Trap wyłącza logging, kończy tylko własny proces loggera i
+odtwarza uprzednie pola PPS. Logger nie jest dodany do autostartu.
+
+Uwagi zgodności QNX: uruchomienie pliku skryptu przez odłączone `on -d sh`
+zwróciło Operation not permitted także po chmod 700. Kod wykonywano więc
+bezpośrednio jako polecenie istniejącej sesji SSH. W tej powłoce nie ma
+`printf`; zastąpiono go echo/cat. Po nieudanej próbie potwierdzono Disabled,
+brak procesu oraz przywrócenie ścieżek i parametrów przed kolejną próbą.
+
+Krótki test bez rozmowy potwierdził zmianę Status na Enabled i obsługę
+maski 5, po czym cleanup odtworzył Disabled/maskę 1. Nie utworzył danych.
+Następnie uruchomiono okno 90 s (gotowość około 13:02:06) i poproszono
+użytkownika o jedną próbę wychodzącą podczas zapisu. Do 13:04:09 brak nowych
+INVITE/calltype w odczytanym oknie IMS i brak plików QMDL. Sam stan Enabled
+nie dowodzi skutecznego odbioru danych. Nie potwierdzono ani przyczyny
+modemowej błędu 503, ani działającego przechwytywania NAS podczas rozmowy.
+
+Odczyt 13:04:09 po zakończeniu okna: logger Disabled, brak jego procesu,
+przywrócone LogDir=/var/log/radio/, maska 1, LogNum=4, LogSize=25.
+Nie pozostawiono aktywnego zapisu diagnostycznego. Potrzebna jest dopiero
+zsynchronizowana nowa próba użytkownika; nie traktujemy braku ruchu w tym
+oknie jako negatywnego wyniku rozmowy ani jako potwierdzenia usterki loggera.
