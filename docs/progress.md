@@ -963,3 +963,47 @@ przywrócone LogDir=/var/log/radio/, maska 1, LogNum=4, LogSize=25.
 Nie pozostawiono aktywnego zapisu diagnostycznego. Potrzebna jest dopiero
 zsynchronizowana nowa próba użytkownika; nie traktujemy braku ruchu w tym
 oknie jako negatywnego wyniku rozmowy ani jako potwierdzenia usterki loggera.
+
+### 13:07–13:21 — ustalona blokada natywnej diagnostyki QUIP
+
+Użytkownik zapytał o następny krok. Priorytetem jest odebranie rzeczywistych
+komunikatów modemu przed kolejnym testem głosu, bez dalszych zmian profilu.
+
+`qct_mplogsvc -h` uruchomione w zwykłym środowisku SSH nie znajdowało
+`libqmi_client_qmux.so`. Biblioteka istnieje w `/radio/lib`; lokalne dla
+procesu `LD_LIBRARY_PATH=/radio/lib:/usr/lib:/lib` rozwiązuje ten problem.
+Nie zmieniano globalnego środowiska ani bibliotek. Pomocniczy proces
+modemu nie działał; pozostawało jego stare gniazdo UDS, którego bind zwracał
+Address already in use. Próba używała UID:GID 392:31 i krótkiego okresu PUSH.
+
+Stare gniazdo chwilowo przeniesiono pod inną nazwę, przy potwierdzonym braku
+procesu. W następnej próbie backend poprawnie połączył się z usługą QMI 0xe4
+i natywny logger załadował maskę NAS, lecz danych nadal nie było. Cleanup
+wyłączył logger, załadował Null_mask i zakończył tylko własne procesy;
+pierwotne gniazdo i pola PPS zostały przywrócone. Skrypty i filtrowany dowód
+są ignorowane w artifacts (`tmobile-diag-backend-probe*.sh`,
+`tmobile-diag-backend-probe2-filtered.txt`).
+
+Sprawdzono też bezpośredni klient `/base/bin/qct_mplogsvc_clnt` oraz
+stockowy bufor `modem_basic`. Jego maska obejmuje LTE RRC/NAS ESM/EMM.
+Ta próba używała odrębnego, prywatnego gniazda UDS, bez dotykania gniazda
+domyślnego. Pojedynczy ping do 1.1.1.1 przez internet telefonu otrzymał
+odpowiedź (19 ms), lecz bufor był pusty. **Kod wyjścia 0 narzędzia klienckiego
+nie wystarcza:** slog2 rejestruje response from server = 8 dla start/read/stop.
+Backend zakończono; nie pozostawiono procesu ani aktywnego loggera.
+
+Odczytowa analiza własnej kopii binarki wyjaśnia **kod 8**. W funkcji przy
+0x7a7c kod wywołuje predykat przy 0xb848; gdy predykat jest fałszywy,
+ustawia odpowiedź 8 i tekst `QUIP is disabled. No action is to be taken`.
+To konkretna blokada diagnostyki, a nie modemowa przyczyna błędu rozmowy.
+PPS `/pps/system/quip/ctrl` ma `diag_enabled::0`. Nie ustawiano tego pola,
+nie zmieniano AuthTokenID, nie obchodzono autoryzacji i nie patchowano binarek.
+
+Odczyt 13:21: telefon idle, IMS connected/LTE, maska 35652618; logger Disabled,
+oryginalny LogDir i maska 1. Profil, trwała flaga i kod VoLTE nie były zmieniane.
+Następny etap: ustalić dostępny, odwracalny sposób uruchomienia diagnostyki
+tej wersji BB10; dopiero po potwierdzeniu rzeczywistych danych przeprowadzić
+jedną próbę głosu. Nie prosić o kolejne rozmowy z samym wskaźnikiem Enabled.
+
+Dowód: `artifacts/tmobile-mplog-probe-filtered.txt`; narzędzia i kopie binarek
+pozostają lokalnie pod ignorowanym artifacts, bez identyfikatorów abonenta w Git.
