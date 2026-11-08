@@ -661,3 +661,30 @@ Uruchomiono odczytową obserwację radio/phone/IMS do
 próby połączenia użytkownika z Q10 na drugi własny numer i potwierdzenia LTE
 oraz audio, a następnie osobno połączenia przychodzącego. Głosu T-Mobile
 nie potwierdzamy na podstawie samej rejestracji IMS.
+
+### T-Mobile: nieudana próba o 11:45:45
+
+Użytkownik zgłosił przejście do `e` i potwierdził czas rozmowy. Logi rozstrzygają
+kierunek: **przychodząca** (`calltype=incoming`, `call_state=INCOMING`), transport
+**circuit_switched**, modem **CS/GSM**. W odczytanym fragmencie IMS nie znaleziono
+INVITE tej rozmowy ani odmowy SIP 488 podobnej do Orange. To nie dowodzi jeszcze
+konkretnej przyczyny decyzji sieci.
+
+Menedżer zareagował na utratę LTE o 11:45:45 i zatrzymał IMS; po powrocie LTE
+odtworzył rejestrację o 11:46:05, po czym potwierdzono VoPS=1 i maskę 35652618.
+Flaga nie jest tym samym co gwarancja kierowania połączeń przychodzących do IMS.
+Nie zmieniamy preconditions ani profilu na podstawie samego zejścia do 2G.
+
+Dowody po filtracji identyfikatorów abonenta:
+`artifacts/tmobile-20261108-failed-call-filtered.txt`,
+`artifacts/tmobile-20261108-call-domain-filtered.txt`,
+`artifacts/tmobile-20261108-fallback-onset-filtered.txt`.
+Rejestracja po próbie: challenge 401, potem 200 OK/Registration successful;
+przejście software VoPS=0 → 1 nastąpiło po rejestracji. Nie uznajemy tego
+za potwierdzenie obsługi głosu w T-Mobile.
+
+Odczytowa obserwacja 11:30:10–11:33:11 zawierała tylko idle; użytkownik wykonał
+próbę później, więc nie wolno przypisywać jej wcześniejszych próbek.
+Następny rozstrzygający test: zwykła rozmowa **wychodząca z Q10** na drugi
+własny numer, zamiast ponownej próby przychodzącej. Pozwoli sprawdzić, czy
+Q10 wysyła INVITE i jak reaguje IMS T-Mobile, zanim zmienimy konfigurację.
