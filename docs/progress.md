@@ -688,3 +688,230 @@ próbę później, więc nie wolno przypisywać jej wcześniejszych próbek.
 Następny rozstrzygający test: zwykła rozmowa **wychodząca z Q10** na drugi
 własny numer, zamiast ponownej próby przychodzącej. Pozwoli sprawdzić, czy
 Q10 wysyła INVITE i jak reaguje IMS T-Mobile, zanim zmienimy konfigurację.
+
+### T-Mobile: wychodzące — natychmiastowy błąd SIP 503
+
+Użytkownik wykonał próby wychodzące: natychmiastowy błąd, bez sygnału.
+Log 12:12:43 (i powtórzenie 12:12:48) potwierdza **VoPS=1**, wysłanie INVITE,
+100 Trying, **183 Session Progress**, PRACK, a następnie **503 Service Unavailable**.
+SBC T-Mobile podał konkretny powód:
+
+```text
+Warning: 399 sbc.ims.t-mobile.pl "RAR_MSG:INDICATION_OF_FAILED_RESOURCES_ALLOCATION "
+Reason: SIP;cause=503;text="PO: RAR: INDICATION_OF_FAILED_RESOURCES_ALLOCATION"
+```
+
+Nie jest to lokalna odmowa wyboru IMS jak poprzednio na Orange. Błędy 481
+dla PRACK/BYE następują po zamknięciu transakcji i nie stanowią dowodu głównej
+przyczyny. W widocznym fragmencie modemu nie znaleziono konkretnego NAS/ESM
+reject wyjaśniającego odmowę przydziału zasobów; nie zgadujemy wartości NVRAM.
+
+Istotny kontekst: `PreconditionPolicy(): null`, SDP INVITE zawierało
+`a=des:qos none local/remote none`, a lokalny kod zgłaszał `upgradeStep(): Not implemented`.
+Odpowiedź 183 wymagała **100rel**, nie znaleziono w niej `Require: precondition`.
+Dlatego twierdzenie „T-Mobile wymaga preconditions” nie jest jeszcze udowodnione.
+
+Jako pojedynczą, odwracalną próbę diagnostyczną dodano **ir92-240** z
+`UsePreconditions:b:true`, zachowując SMS/modesety i istniejący profil 240.
+Hipoteza: inna negocjacja QoS może zmienić wynik przydziału zasobów. Nie uznajemy
+tego za naprawę przed nową rozmową. Trwała flaga pozostała włączona; kod C
+i binarka nie były zmieniane. Pełne testy nadal 36 + 49, zero błędów.
+
+Przed próbą: `/var/rootdata/tmobile-before-ir92-20261108/config-and-addon.tar`
+oraz lokalnie ignorowany `artifacts/tmobile-before-ir92-20261108.tar` (600).
+Nowy plik IR.92 przesłano i porównano `cmp`. Po potwierdzeniu idle zatrzymano
+menedżer i uruchomiono go z `-a enable -r -v`, ze standardowymi strumieniami
+odłączonymi od SSH, logiem `trial.log` w katalogu backupu.
+
+Cofnięcie w razie niepowodzenia: przy idle zatrzymać menedżer, przenieść tylko
+nowy `data/ir92-240` do katalogu backupu pod nazwą próby, następnie uruchomić
+enable z odświeżeniem i potwierdzić powrót domyślnego IR.92. Nie usuwać markera
+force-ims-voice ani profilu Orange w ramach tej próby.
+
+Dowody: `artifacts/tmobile-20261108-outgoing-failure-filtered.txt`,
+`artifacts/tmobile-20261108-preconditions-evidence.txt`,
+`artifacts/tmobile-20261108-bearer-failure-filtered.txt`.
+
+Pierwsze odświeżenie zastosowało `UsePreconditions:b:true`, ale nowa rejestracja
+nie ukończyła się: po challenge 401 i REGISTER z uwierzytelnieniem przyszło
+ponowne 401; menedżer zakończył się REGISTER_TIMEOUT. Nie był to zaobserwowany
+wcześniej błąd „Address already in use”, więc nie przypisano mu tej przyczyny.
+Flaga została zdjęta przez cleanup. Przed próbą rozmowy potrzebna jest nowa
+rejestracja; po odczycie błędu wykonano jeden kontrolowany ponowny start,
+bez dalszej zmiany parametrów IR.92. Log po filtracji:
+`artifacts/tmobile-20261108-ir92-refresh-stall.txt`.
+
+Kontrolowany ponowny start zakończył się rejestracją: `trial-retry.log`
+pokazuje IMS connected o 12:20:31 i CONNECTED o 12:20:33. Odczyt 12:22:40:
+IMS `connected`, `default_ran=LTE`, `deviceConfig=[VoLTE]`, telefon idle,
+VoPS=1, maska urządzenia 35652618. Efektywny IR.92 zawiera
+`UsePreconditions:b:true`; menedżer PID 20459709 i IMS PID 20500574 działają.
+Pierwszy błąd 401 nie utrzymał się przy ponownej rejestracji; jego przyczyna
+nie jest ustalona. Poproszono o pojedynczą próbę wychodzącą z Q10 po tej
+zmianie. Wynik głosu T-Mobile pozostaje niepotwierdzony.
+
+Log SIP dodatkowo potwierdza aktywną politykę `Precondition.Policy=[volte]`
+i poprawną sekwencję rejestracji 401 → REGISTER → 200 OK o 12:20:31.
+Dowód po filtracji: `artifacts/tmobile-20261108-ir92-trial-sip-filtered.txt`.
+Odczytowa obserwacja po prośbie o próbę nie zawiera jeszcze nowego połączenia;
+nie przypisujemy jej wcześniejszej, nieudanej próby użytkownika.
+
+### T-Mobile: po próbie IR.92 rozmowy nadal przez 2G
+
+Użytkownik potwierdził możliwość dzwonienia z Q10, ale `e` w obu kierunkach.
+Odczyt modemu i chronologia rozdzielają te próby:
+
+- 12:24:34 menedżer odnotował LTE_LOST, a 12:24:35 rozpoczął zatrzymanie IMS.
+- 12:24:35–36 modem zgłosił **przychodzące CS/GSM**, a IMS monitor potwierdził
+  `calltype=incoming`, `connection_type=circuit_switched`. W odczytanym oknie
+  nie znaleziono INVITE tej rozmowy; nie jest to dowód przyczyny po stronie sieci.
+- 12:24:42 koniec przychodzącego; 12:24:49 początek **wychodzącego CS/LTE**,
+  następnie alerting i rozmowa **CS/GSM** od 12:24:52/57 do 12:27:44.
+  `CS, LTE: ORIGINATING` nie oznacza rozmowy VoLTE: połączenie jest CS i później GSM.
+- IMS odzyskał rejestrację dopiero o 12:27:47 (401 → REGISTER → 200 OK),
+  z polityką `Precondition.Policy=[volte]`; VoPS ponownie wzrosło do 1.
+- Odczyt 12:28:39: telefon idle, IMS connected/LTE, modem LTE.
+
+Zatem udana rozmowa wychodząca nie dowodzi usunięcia błędu SIP 503 przez
+preconditions: zaczęła się w przerwie połączenia IMS. Nie cofano ani nie
+dodawano kolejnych parametrów na podstawie tego wyniku. Poproszono o jedno
+połączenie **najpierw z Q10**, po potwierdzonej rejestracji, bez uprzedniej
+próby przychodzącej. Flaga i instalowana binarka pozostają bez zmian.
+
+Dowody po filtracji: `artifacts/tmobile-20261108-post-trial-ims-filtered.txt`,
+`artifacts/tmobile-20261108-post-trial-call-domain-filtered.txt`.
+Dostęp SSH chwilowo nie odpowiadał lub kończył się timeoutem, mimo odpowiedzi
+TCP/22 i bannera SSH; późniejsze odczyty powiodły się bez zmiany tras,
+restartu telefonu czy restartu serwera SSH. Przyczyna opóźnienia nieustalona.
+
+Po kolejnej prośbie użytkownik odpowiedział „rozmowa działa, przechodzi do E”.
+Jednak odczyt logów do 12:30:38 nie zawiera nowej próby po odzyskaniu IMS:
+brak nowych zdarzeń CallInfoEvent/CALL_STATE i INVITE w tym oknie.
+Próbki 12:29:18–12:30:00 oraz odczyt 12:30:13 pokazują stale idle, LTE,
+IMS connected i maskę 35652618. Nie zakładamy więc, że odpowiedź opisuje
+nową próbę: poproszono o doprecyzowanie, czy chodzi o rozmowę 12:24–12:27,
+czy następną (wtedy potrzebny czas). Profil pozostaje eksperymentalny;
+nie ma jeszcze rozstrzygającej próby wychodzącej z aktywnym IMS po zmianie.
+Dowód: `artifacts/tmobile-20261108-after-1228-calls-filtered.txt`.
+
+### T-Mobile: kolejna próba 12:31 — nadal przychodząca CS/GSM
+
+Użytkownik zgłosił „cały czas 2g”. Odczyt 12:32:17 po próbie potwierdził
+idle, modem LTE, IMS connected/LTE, maskę 35652618 oraz działający menedżer.
+Nowe zdarzenia modem/IMS: 12:31:54 utrata LTE, 12:31:55 SETUP CS/GSM,
+12:31:56 **INCOMING CS/GSM** i `calltype=incoming`, koniec 12:32:01.
+W odczytanym oknie brak INVITE i wychodzącego ORIGINATING. IMS odtworzył
+rejestrację 12:32:13–14. Nie przypisujemy temu zdarzeniu diagnozy nowej
+próby wychodzącej ani błędu SIP 503. To oddzielny dowód, że przychodzące
+w obecnym stanie trafiają do CS mimo poprzedniej rejestracji IMS.
+
+Zweryfikowano też efektywną konfigurację: IR.92 ma bool true dla
+UsePreconditions, IMS_services zawiera voice/mmtel/LTE, voice_domain_preference
+wynosi 3 i ue_usage_setting jest voice_centric. REGISTER zawiera mmtel i smsip,
+bez osobnego tagu audio; to samo w sobie nie dowodzi rejestracji wyłącznie SMS.
+Tag audio opisuje możliwości mediów według [RFC 3840](https://www.rfc-editor.org/rfc/rfc3840.html),
+ale nie ustalono, czy jego brak wpływa na routing głosu tej sieci.
+
+Sprawdzono rozbieżność pomiędzy efektywnym PPS a dumpem konfiguracji IMS:
+PPS ma IMS_always_on=true i Mobility_Management_IMS_Voice_Termination=1,
+dump procesu raportuje dla tych pól 0. Nie rozstrzygnięto jeszcze, czy to
+różna warstwa/źródło konfiguracji, typ czy obsługa klucza w tej wersji IMS.
+Nie zmieniano na tej podstawie ustawień telefonu.
+
+Do odczytowej analizy pobrano `/radio/bin/ims_rrm` (wersja z 2016-12-13)
+do ignorowanego `artifacts/`, prawa 600. Potwierdzono istnienie klucza
+`RegisterFeatureTags` w resolverze tej binarki, ale nie udowodniono jego
+semantyki ani konieczności zmiany. Analiza lokalna używa Capstone 5.0.9
+i pyelftools 0.33 rozpakowanych wyłącznie wewnątrz ignorowanego `artifacts/`
+z kół PyPI po sprawdzeniu SHA-256. Nie instalowano pakietów systemowych,
+nie wysyłano binarki systemowej do repo i nie modyfikowano jej.
+
+Dowody po filtracji: `artifacts/tmobile-20261108-call-1231-filtered.txt`,
+`artifacts/tmobile-20261108-config-and-caps-filtered.txt`,
+`artifacts/tmobile-20261108-effective-config.txt`,
+`artifacts/tmobile-20261108-merged-ims-config.txt`.
+Nadal potrzebne jest połączenie wybrane **na klawiaturze Q10** po potwierdzeniu
+IMS; następne zmiany profilu bez tego nie pozwolą porównać błędu wychodzącego.
+
+### T-Mobile: potwierdzona kolejność przychodzące → wychodzące, 12:40–41
+
+Użytkownik wyjaśnił, że najpierw próbował przychodzącego, potem wychodzącego;
+w obu było `e`. Logi potwierdzają tę relację, nie kwestionujemy jej:
+
+- 12:40:42 LTE_LOST; 12:40:43–44 przychodzące CS/GSM, koniec 12:40:48.
+- 12:40:59.082 wychodzące **CS/LTE ORIGINATING**, a 12:41:04.426
+  **CS/GSM ALERTING**, koniec 12:41:05.401.
+- Odtwarzanie IMS rozpoczęło się 12:41:00, ale REGISTER otrzymał 200 OK
+  dopiero 12:41:06.526. Flaga ON i VoPS=1 wróciły o 12:41:07,
+  menedżer zgłosił CONNECTED o 12:41:08.
+- Odczyt 12:42:05: idle, LTE, IMS connected, maska 35652618.
+
+Wychodzące zaczęło się zatem przed powrotem gotowości IMS. To wyjaśnia
+transport tej próby, ale nie naprawia przychodzących ani nie rozstrzyga,
+czy próba preconditions zmieniła wcześniejszy błąd 503 przy INVITE.
+Dowód: `artifacts/tmobile-20261108-calls-after-1239-filtered.txt`.
+
+Próba odczytania pełnego SDP z dawnego okna 12:12 nie znalazła już tego
+fragmentu w dostępnych buforach slog2. Nie odtwarzamy brakujących pól SDP
+z pamięci i nie zmieniamy IP/codeców na podstawie domysłów. Kolejna próba
+rozstrzygająca wymaga wyłącznie wychodzącego z Q10 po potwierdzeniu IMS,
+bez poprzedzającego przychodzącego. W tym etapie nie zmieniano telefonu.
+
+### T-Mobile: rozstrzygający błąd wychodzącego z gotowym IMS, 12:43
+
+Po potwierdzeniu IMS użytkownik wybrał numer na Q10 i otrzymał „this call
+could not be connected”. Logi potwierdzają wychodzące `ims_cellular/ir_92`,
+VoPS=1 i INVITE; nie jest to ta sama sytuacja co wcześniejsze wychodzące CS
+w przerwie rejestracji. Dwie pełne sekwencje z 12:43:49 i 12:43:55:
+INVITE → 100 Trying → 183 Session Progress → PRACK → **503**.
+
+```text
+Warning: 399 sbc.ims.t-mobile.pl "ASR_MSG: INSUFFICIENT_BEARER_RESOURCES"
+Reason: SIP;cause=503;text="PO: ASR: INSUFFICIENT_BEARER_RESOURCES"
+```
+
+Próba preconditions została faktycznie zastosowana: polityka `volte`,
+Supported zawiera precondition, SDP żąda `mandatory local sendrecv`.
+W 183 nadal nie ma Require: precondition; BB loguje pominięcie QoS UPDATE
+z tego powodu. T-Mobile akceptuje w SDP odpowiedzi AMR/8000, mode-set=7,
+octet-align=0. Nie wnioskujemy z samego 183, że bearer głosowy lub rozmowa działa.
+Błąd 481 dla PRACK/BYE znów następuje po 503.
+
+**Wniosek próby: UsePreconditions=true nie naprawiło głosu T-Mobile.**
+Opis ASR różni się od wcześniejszego RAR_MSG, lecz nadal dotyczy zasobów
+bearera. [3GPP TS 29.214, klauzula 5.3.1](https://www.etsi.org/deliver/etsi_ts/129200_129299/129214/08.15.00_60/ts_129214v081500p.pdf)
+definiuje taki powód przerwania sesji. Nie dowodzi to przeciążenia stacji,
+awarii całego T-Mobile, winy SIM ani konkretnego błędu firmware modemu.
+
+Sprawdzono wiązanie IP: APN ims jest connected na msm1, a adres lokalny SDP
+pasuje do IPv4 tego interfejsu. APN internet używa msm0 z innym adresem.
+Nie potwierdzono hipotezy pomylenia IMS i internetu. W odczytanych logach
+warstwy QNX nie znaleziono konkretnego NAS/ESM reject ani zdarzenia bearer/QCI
+wyjaśniającego odmowę. To ograniczenie danych, nie dowód braku takiego zdarzenia.
+
+Przy idle zakończono menedżer przez SIGTERM, potwierdzono jego wyjście,
+przeniesiono jedynie testowy `data/ir92-240` do backupu jako
+`/var/rootdata/tmobile-before-ir92-20261108/ir92-240.failed-preconditions-trial`
+i uruchomiono enable z odświeżeniem, logiem `rollback.log` oraz odłączonymi
+strumieniami. Plik i wpis perms usunięto również z repo jako cofnięcie własnej
+próby; konfiguracja Orange i kod C pozostały bez zmian.
+
+Odczyt 12:47:51: domyślne `UsePreconditions:n:0`, IMS connected/LTE,
+deviceConfig VoLTE, maska 35652618, marker nadal obecny, menedżer PID 24137856.
+Powrót rejestracji nie oznacza naprawy rozmów. Nie testowano alarmowych.
+
+Stary ZIP z testem zachowano jako ignorowany
+`artifacts/volte-tmobile-preconditions-failed-20261108.zip`; następnie utworzono
+**nowy** ZIP (zip -r nie usuwa automatycznie starych wpisów). Weryfikacja:
+CRC poprawne, brak data/ir92-240, marker force-ims-voice i perms zgodne ze
+źródłami; hash binarki IMS nadal
+`5f58a2258ae21707590f9f85700b55160cde2e953c5a62d2d0697143141e29a2`.
+
+Dowody po filtracji: `artifacts/tmobile-20261108-outgoing-ready-ims-filtered.txt`,
+`artifacts/tmobile-20261108-ready-call-bearer-filtered.txt`,
+`artifacts/tmobile-20261108-ims-ip-binding-summary.txt`.
+
+Odczyt upstream issues/PR nie znalazł gotowej poprawki T-Mobile.
+Pomocniczy [projekt PhhIms](https://github.com/ProjectCiRCLE-ROM/packages_apps_PhhIms#partial--reference-carrier-logs)
+opisuje 26002 tylko jako częściowy materiał referencyjny, nie potwierdzoną
+działającą konfigurację. Nie kopiowano z niego ustawień do Q10.
