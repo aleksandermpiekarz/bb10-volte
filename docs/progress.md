@@ -1052,3 +1052,22 @@ Porównanie T-Mobile: zachować ten sam build i podłączenie USB. Po zmianie
 SIM potwierdzić 260/02, profil 240, IMS CONNECTED i VoPS=1 przed próbą.
 Najpierw powtórzyć połączenie przychodzące. Wychodzące sprawdzić osobno,
 zapisując godzinę, domenę połączenia, odpowiedź SIP, radio i wynik audio.
+
+## 2026-11-20 — T-Mobile, obie próby około 11:27 CET, wersja 2.45
+
+Przed rozmowami Q10 na USB: SIM 260/02, carrier 240, aktywny
+carrier-auto-240-volte.xml. O 11:24:12 IMS CONNECTED, INCOMING_NOT_READY,
+flaga ON, ims_rrm VoPS=1. Użytkownik zgłosił przejście na 2G w obu kierunkach.
+
+- Wychodzące: 11:27:01 VoPS=1 i INVITE. Następnie 100 Trying, 183 Session
+  Progress, PRACK i o 11:27:02.563 odpowiedź 503 na INVITE. SBC T-Mobile
+  podał dokładnie „PO: RAR: INDICATION_OF_FAILED_RESOURCES_ALLOCATION”.
+  Wcześniejszy zapis tej sieci miał inny tekst (ASR: INSUFFICIENT_BEARER_RESOURCES).
+  O 11:27:09 połączenie CS rozpoczęło się na LTE, o 11:27:12 dzwoniło
+  na GSM. Flaga OFF i LTE_LOST pojawiły się dopiero o 11:27:13.
+- Przychodzące: o 11:27:23–24 modem był już na GSM (CS SETUP/INCOMING),
+  po wcześniejszym LTE_LOST. Ta próba potwierdza odebranie sygnalizacji
+  przez GSM. Nie sprawdza kierowania połączeń przychodzących przy aktywnym IMS.
+- Orange na tej paczce dostał 200 OK dla INVITE. Na T-Mobile potwierdzono
+  odmowę alokacji zasobów w sygnalizacji wychodzącej. Szczegółowa przyczyna
+  po stronie modemu, konfiguracji lub sieci pozostaje nieustalona.
