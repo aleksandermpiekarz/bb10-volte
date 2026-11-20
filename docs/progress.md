@@ -1007,3 +1007,23 @@ jedną próbę głosu. Nie prosić o kolejne rozmowy z samym wskaźnikiem Enable
 
 Dowód: `artifacts/tmobile-mplog-probe-filtered.txt`; narzędzia i kopie binarek
 pozostają lokalnie pod ignorowanym artifacts, bez identyfikatorów abonenta w Git.
+
+## 2026-11-20 — aktualizacja forka i instalacja 2.45 na Q10
+
+Bieżącym celem jest synchronizacja forka z nowymi zmianami źródłowego
+bb10root/bb10-volte. Zweryfikowany upstream main to 02ba95c, a main forka
+b0419a5 zawiera ten sam kod oraz siedem plików dokumentacji. Paczkę
+zbudowano na gałęzi docs/upstream-2.45. Gałąź feat/persistent-ims-voice
+pozostaje archiwalna. Prace specyficzne dla T-Mobile odkładamy na później.
+
+Do linkowania dołączono popen.o z armle-v7/lib/libc.a SDK BB10.
+W paczce zapisano init/start.sh z końcami linii LF, bo po instalacji wersji
+z CRLF demon nie wystartował. SHA-256 końcowego volte.zip:
+f4f7f0ab4d27838dc26f3a1c3c916b5a4e97a4837812ea36b6e5b02b7f81d0f6.
+Kopię pobraną z telefonu porównano bajt w bajt przed instalacją.
+
+Instalator zgłosił błąd odczytu przy ponownym nakładaniu łatki ims_rrm.
+Demon następnie odtworzył plik (4787852 bajty, wpis IMS_RRM: repaired).
+Potwierdzono uruchomione ims_manager i ims_rrm oraz wpisy CONNECTED,
+INCOMING_NOT_READY i IMS_VOICE_FLAG: ON. Autotest binarki na Q10 zaliczył
+7 przypadków PPS, 5 flagi głosu i 4 parsera tras. Rozmów nie testowano.
