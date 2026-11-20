@@ -1027,3 +1027,28 @@ Demon następnie odtworzył plik (4787852 bajty, wpis IMS_RRM: repaired).
 Potwierdzono uruchomione ims_manager i ims_rrm oraz wpisy CONNECTED,
 INCOMING_NOT_READY i IMS_VOICE_FLAG: ON. Autotest binarki na Q10 zaliczył
 7 przypadków PPS, 5 flagi głosu i 4 parsera tras. Rozmów nie testowano.
+
+## 2026-11-20 — Orange VoLTE na wersji 2.45 przed zmianą SIM na T-Mobile
+
+Q10, Orange Polska 260/03, carrier ID 149. O 11:13:17 CET dowiązanie
+/base/etc/carrier/config/149.xml wskazywał na
+/var/addons/volte/data/carrier-149-volte.xml. Maska network_service: 35652618
+(bit głosu IMS ustawiony). Obecny marker force-ims-voice.
+
+- Wcześniejsza próba: o 11:05:45 telefon obsługiwał połączenie w domenie CS
+  na LTE, a o 11:05:48 już na GSM. Użytkownik zgłosił, że przy odłączonym
+  telefonie VoLTE nie działało. Brak pomiaru bitu w chwili tego wywołania
+  i porównania przy jednakowym stanie IMS, więc wpływ USB pozostaje otwarty.
+- O 11:06:43 ims_rrm raportował VoPS=0. O 11:06:44 dodatek zgłosił
+  CONNECTED, INCOMING_NOT_READY i IMS_VOICE_FLAG: ON, a ims_rrm odczytał VoPS=1.
+- Przy podłączonym Q10 użytkownik potwierdził rozmowę Orange przez VoLTE.
+  W buforze są dwa dialogi: INVITE o 11:11:17, odpowiedź 200 OK dla INVITE
+  o 11:11:24 i BYE o 11:11:32; następnie VoPS=1 i INVITE o 11:11:36,
+  odpowiedź 183, 200 OK dla INVITE o 11:11:42 i BYE o 11:11:55.
+  Test dotyczył połączenia przychodzącego. Nie przypisano kierunku obu
+  dialogom na podstawie samych numerów CSeq.
+
+Porównanie T-Mobile: zachować ten sam build i podłączenie USB. Po zmianie
+SIM potwierdzić 260/02, profil 240, IMS CONNECTED i VoPS=1 przed próbą.
+Najpierw powtórzyć połączenie przychodzące. Wychodzące sprawdzić osobno,
+zapisując godzinę, domenę połączenia, odpowiedź SIP, radio i wynik audio.
